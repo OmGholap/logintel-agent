@@ -66,6 +66,12 @@ logintel ask "What caused the 503 errors for TENANT-X around 12:02-12:03?" --use
 
 `docker compose down` stops it; add `-v` to also delete the loaded logs (run `logintel load` again afterwards).
 
+**If `logintel load` says it cannot reach Loki:** it waits up to a minute for Loki to start, so this means Loki is not reachable at all. Run `docker compose ps`: loki should show `0.0.0.0:3100->3100`. If it only shows `3100/tcp`, Docker did not publish the port (this has happened once on Docker Desktop for Mac); fix it with:
+
+```bash
+docker compose up -d --force-recreate loki
+```
+
 Other questions to try on the demo data:
 
 ```bash
