@@ -11,6 +11,7 @@ Env: LOKI_URL (default http://localhost:3100), LOKI_USER and LOKI_PASSWORD (opti
 import argparse
 import os
 import sys
+import time
 from datetime import timezone
 
 import httpx
@@ -18,6 +19,13 @@ import httpx
 from .parser import LINE_RE, _is_frame, _parse_ts
 
 BATCH = 1000  # entries per push request
+READY_TIMEOUT = 60  # seconds to wait for a freshly started Loki
+
+CANNOT_REACH = (
+    "Cannot reach Loki at {url}. Start it with `docker compose up -d`.\n"
+    "If `docker compose ps` shows loki as just `3100/tcp` (the port is not published to your machine),\n"
+    "run `docker compose up -d --force-recreate loki`."
+)
 DEFAULT_PAIRS = ["incident=demo_data/production_incident_01.log", "noise=demo_data/auth_rate_limit_noise.log"]
 
 
@@ -68,13 +76,34 @@ def flush(client, url):
         return False
 
 
-def run(pairs):
+def wait_for_loki(client, url, timeout=READY_TIMEOUT, sleep=time.sleep, clock=time.monotonic):
+    """Wait until Loki accepts requests. A just-started Loki needs a few seconds, and
+    refuses connections or answers 503 until then. A server with no /ready endpoint
+    (404) counts as ready. Returns False if it is still not up after `timeout` seconds."""
+    deadline, told = clock() + timeout, False
+    while True:
+        try:
+            if client.get(f"{url}/ready").status_code != 503:
+                return True
+        except httpx.TransportError:  # connection refused, timeout
+            pass
+        if clock() >= deadline:
+            return False
+        if not told:
+            print("Waiting for Loki to start...")
+            told = True
+        sleep(2)
+
+
+def run(pairs, transport=None):
     """Push NAME=FILE pairs into Loki (the address comes from LOKI_URL)."""
     url = os.environ.get("LOKI_URL", "http://localhost:3100").rstrip("/")
     user, password = os.environ.get("LOKI_USER"), os.environ.get("LOKI_PASSWORD")
     auth = (user, password) if user else None
     try:
-        with httpx.Client(auth=auth, timeout=30) as client:
+        with httpx.Client(auth=auth, timeout=30, transport=transport) as client:
+            if not wait_for_loki(client, url):
+                sys.exit(CANNOT_REACH.format(url=url))
             for pair in pairs:
                 name, _, path = pair.partition("=")
                 if not name or not path:
@@ -86,7 +115,7 @@ def run(pairs):
             if flush(client, url):
                 print("flushed to storage: old-dated logs are queryable now")
     except httpx.ConnectError:
-        sys.exit(f"Cannot reach Loki at {url}. Is it running? (docker compose up -d)")
+        sys.exit(CANNOT_REACH.format(url=url))
     except FileNotFoundError as e:
         sys.exit(f"Log file not found: {e.filename}")
 
