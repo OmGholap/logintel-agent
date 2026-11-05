@@ -1,0 +1,128 @@
+{
+  "uid": "logintel-demo",
+  "title": "Logintel demo logs",
+  "schemaVersion": 39,
+  "version": 2,
+  "time": {
+    "from": "2026-05-26T12:02:30.000Z",
+    "to": "2026-05-26T12:03:30.000Z"
+  },
+  "refresh": "",
+  "timezone": "utc",
+  "tags": [
+    "logintel"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "use_case",
+        "label": "use case",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values(use_case)",
+        "definition": "label_values(use_case)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Log volume by use case (lines per 5 s)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "sum by (use_case) (count_over_time({use_case=~\"$use_case\"}[5s]))",
+          "legendFormat": "{{use_case}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Logs (all tenants, mixed by time)",
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{use_case=~\"$use_case\"}",
+          "maxLines": 2000
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Ascending",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "dedupStrategy": "none",
+        "showLabels": false,
+        "showCommonLabels": false
+      }
+    }
+  ]
+}
